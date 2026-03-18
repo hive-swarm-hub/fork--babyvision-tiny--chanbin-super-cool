@@ -128,13 +128,13 @@ Look at the image very carefully. First, describe what you see for each option. 
 
 
 def is_grid_counting(question):
-    """Check if this is a grid-based counting problem (includes dot-line)."""
+    """Check if this is a grid-based counting problem."""
     q = question.lower()
     if not any(w in q for w in ["how many", "count"]):
         return False
-    if any(w in q for w in ["3d", "block", "cube"]):
-        return False
-    if any(w in q for w in ["square", "pattern", "pass through", "point"]):
+    if any(w in q for w in ["square", "pattern"]):
+        if any(w in q for w in ["3d", "block", "cube"]):
+            return False
         return True
     return False
 
@@ -144,40 +144,35 @@ def solve_blank(client, model, question, img_url, hi_url):
     q_lower = question.lower()
     is_counting = any(w in q_lower for w in ["how many", "count", "pass through", "total"])
 
-    # Grid transcription for grid-based counting (including dot-line problems)
+    # Grid transcription for grid-based counting
     if is_grid_counting(question):
-        if any(w in q_lower for w in ["pass through", "point"]):
-            grid_prompt = f"""Look at this image carefully. The question is: {question}
-
-The image shows dots arranged in a grid with lines connecting some of them. Your task: for EACH dot in the grid, write 'X' if the line passes through it, or '.' if it doesn't.
-
-Write the grid of dots row by row from top to bottom, left to right. Use 'X' for dots the line passes through, '.' for dots it doesn't.
-One row per line. Separate with spaces.
-
-Be very precise — trace the line carefully through each dot."""
-        else:
-            grid_prompt = f"""Look at this image carefully. The question is: {question}
+        grid_prompt = f"""Look at this image carefully. The question is: {question}
 
 Your task: Transcribe the image as a grid/matrix. For EACH element in the image, write 'X' if it matches what needs to be counted, or '.' if it doesn't.
 
 Write the grid row by row. One row per line. Use only 'X' and '.' characters separated by spaces.
 Be very precise — examine each cell/element carefully."""
 
-        # Double grid: run twice, take max (models tend to under-mark)
-        grid_text1 = api_call(client, model,
+        grid_text = api_call(client, model,
             [{"role": "user", "content": [hi_url, {"type": "text", "text": grid_prompt}]}],
             temperature=0, max_tokens=2048)
-        count1 = grid_text1.count('X') if grid_text1 else 0
+        programmatic_count = grid_text.count('X')
+        if programmatic_count > 0:
+            return str(programmatic_count), f"GRID_COUNT={programmatic_count}\n{grid_text}"
 
-        grid_prompt2 = grid_prompt + "\n\nIMPORTANT: Make sure you don't miss any — double-check every element."
-        grid_text2 = api_call(client, model,
-            [{"role": "user", "content": [hi_url, {"type": "text", "text": grid_prompt2}]}],
-            temperature=0.1, max_tokens=2048)
-        count2 = grid_text2.count('X') if grid_text2 else 0
+    # Specialized counting for line/point problems
+    if is_counting and any(w in q_lower for w in ["point", "pass through", "line"]):
+        point_prompt = f"""Look at this image carefully. {question}
 
-        grid_count = max(count1, count2)
-        if grid_count > 0:
-            return str(grid_count), f"GRID: c1={count1} c2={count2} max={grid_count}\n{grid_text1}"
+List EVERY point/intersection that the line passes through. For each one, note its approximate position (row, column). Number each point sequentially.
+
+After listing all points, write the total count on the last line as just a number."""
+
+        raw = api_call(client, model,
+            [{"role": "user", "content": [hi_url, {"type": "text", "text": point_prompt}]}],
+            temperature=0, max_tokens=2048)
+        answer = extract_blank(raw)
+        return answer, raw
 
     # Specialized counting for directional objects (cars)
     if is_counting and any(w in q_lower for w in ["driving", "direction", "left", "right"]):

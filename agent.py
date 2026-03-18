@@ -36,7 +36,7 @@ def solve(question: str, image_path: str, ans_type: str, options: list) -> str:
         model=model,
         messages=messages,
         temperature=0,
-        max_tokens=64,
+        max_completion_tokens=64,
     )
 
     raw_output = response.choices[0].message.content.strip()

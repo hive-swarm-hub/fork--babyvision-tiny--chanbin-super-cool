@@ -141,9 +141,25 @@ Think step by step, then give your final answer in the exact format requested. P
             answer = answer_a
             raw_output = resp_a.choices[0].message.content.strip()
         else:
-            # When answers disagree, prefer prompt A (question-first, better for counting)
-            answer = answer_a
-            raw_output = f"A={answer_a} B={answer_b} PICKED=A"
+            # Text-only tiebreaker (uses description without image)
+            tiebreak_prompt = f"""{question}
+
+Based on this detailed analysis of the image:
+{description}
+
+Think step by step. Give ONLY the answer on the last line."""
+            resp_c = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": tiebreak_prompt}],
+                temperature=0,
+                max_completion_tokens=512,
+            )
+            answer_c = extract_answer(resp_c.choices[0].message.content.strip(), ans_type)
+            # Majority vote among a, b, c
+            from collections import Counter
+            votes = Counter([answer_a, answer_b, answer_c])
+            answer = votes.most_common(1)[0][0]
+            raw_output = f"A={answer_a} B={answer_b} C(text)={answer_c} VOTE={answer}"
 
     # Save trajectory
     traj_dir = os.environ.get("EVAL_TRAJECTORY_DIR")

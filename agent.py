@@ -59,13 +59,15 @@ def extract_choice_letter(raw_output):
     return answer_line
 
 
+SEED = int(os.environ.get("SOLVER_SEED", "42"))
+
 def api_call(client, model, messages, temperature=0, max_tokens=1024):
     """API call with retry on empty."""
     for _ in range(2):
         resp = client.chat.completions.create(
             model=model, messages=messages,
             temperature=temperature, max_completion_tokens=max_tokens,
-            seed=42,
+            seed=SEED,
         )
         content = resp.choices[0].message.content
         if content and content.strip():
@@ -206,7 +208,7 @@ Be very precise — examine each cell/element carefully."""
             for _ in range(3):
                 resp = client.chat.completions.create(
                     model=model, messages=count_msgs, temperature=0.3, max_completion_tokens=256,
-                    seed=42,
+                    seed=SEED,
                 )
                 all_answers.append(extract_answer(resp.choices[0].message.content.strip(), ans_type))
 

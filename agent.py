@@ -59,13 +59,16 @@ def extract_choice_letter(raw_output):
     return answer_line
 
 
-def api_call(client, model, messages, temperature=0, max_tokens=1024):
+def api_call(client, model, messages, temperature=0, max_tokens=1024, seed=42):
     """API call with retry on empty."""
     for _ in range(2):
-        resp = client.chat.completions.create(
+        kwargs = dict(
             model=model, messages=messages,
             temperature=temperature, max_completion_tokens=max_tokens,
         )
+        if seed is not None:
+            kwargs["seed"] = seed
+        resp = client.chat.completions.create(**kwargs)
         content = resp.choices[0].message.content
         if content and content.strip():
             return content.strip()
@@ -151,9 +154,9 @@ Look at the image carefully. Think step by step. Give your final answer in the e
             count_msgs.append({"role": "assistant", "content": analysis})
             count_msgs.append({"role": "user", "content": "Now count your list carefully and give the total. Put ONLY the number on the last line."})
 
-            for _ in range(3):
+            for i in range(3):
                 resp = client.chat.completions.create(
-                    model=model, messages=count_msgs, temperature=0.3, max_completion_tokens=256,
+                    model=model, messages=count_msgs, temperature=0.3, max_completion_tokens=256, seed=42+i,
                 )
                 all_answers.append(extract_answer(resp.choices[0].message.content.strip(), ans_type))
 
@@ -161,8 +164,7 @@ Look at the image carefully. Think step by step. Give your final answer in the e
             resp_a = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": [hi_url, {"type": "text", "text": prompt_a}]}],
-                temperature=0.1,
-                max_completion_tokens=1024,
+                temperature=0.1, max_completion_tokens=1024, seed=42,
             )
             all_answers.append(extract_answer(resp_a.choices[0].message.content.strip(), ans_type))
 
@@ -175,8 +177,7 @@ Put ONLY the final count number on the last line."""
             resp_b = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": [hi_url, {"type": "text", "text": prompt_count}]}],
-                temperature=0.1,
-                max_completion_tokens=1024,
+                temperature=0.1, max_completion_tokens=1024, seed=43,
             )
             all_answers.append(extract_answer(resp_b.choices[0].message.content.strip(), ans_type))
 
@@ -196,16 +197,14 @@ Think step by step, then give your final answer in the exact format requested. P
             resp_a = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": [hi_url, {"type": "text", "text": prompt_a}]}],
-                temperature=0.1,
-                max_completion_tokens=1024,
+                temperature=0.1, max_completion_tokens=1024, seed=42,
             )
             answer_a = extract_answer(resp_a.choices[0].message.content.strip(), ans_type)
 
             resp_b = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": [hi_url, {"type": "text", "text": prompt_b}]}],
-                temperature=0.1,
-                max_completion_tokens=1024,
+                temperature=0.1, max_completion_tokens=1024, seed=43,
             )
             answer_b = extract_answer(resp_b.choices[0].message.content.strip(), ans_type)
 
